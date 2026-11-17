@@ -61,6 +61,7 @@ The timestamp is illustrative; the actual timestamp and UTC offset come from the
 - Direct Markdown creation; no Obsidian CLI, URI, plugin, or running Obsidian process is required.
 - Timestamped filenames with collision-safe numeric suffixes.
 - UTF-8 output, including Bangla and other Unicode text.
+- Preservation of user line breaks, including intentional trailing blank lines.
 - Configuration and logs stored outside the vault.
 - Basic path validation and checks against destination symlinks escaping the vault.
 - Automated tests using Python's built-in `unittest`.
@@ -206,6 +207,9 @@ Obsidrop/
 ├── requirements.txt             # No third-party runtime packages required
 ├── pyproject.toml               # Project metadata and Python version
 ├── .gitignore                   # Excludes local/generated files
+├── .github/
+│   └── workflows/
+│       └── tests.yml            # CI: Windows/Linux, Python 3.10 and 3.14
 ├── AGENTS.md                    # Persistent context and instructions for AI agents
 ├── README.md                    # This user-facing guide
 ├── CHANGELOG.md                 # Version history
@@ -222,7 +226,11 @@ Obsidrop/
 │
 ├── tests/                       # Automated tests
 │   ├── __init__.py
+│   ├── support.py               # Shared filesystem test helpers
 │   ├── test_config.py           # Config and path validation tests
+│   ├── test_hotkeys.py          # Mocked Win32 hotkey worker tests
+│   ├── test_logging_setup.py    # Log initialization and recovery tests
+│   ├── test_main.py             # Hotkey activation retry tests
 │   └── test_markdown_writer.py  # Markdown and file-writing tests
 │
 └── docs/                        # Detailed project documentation
@@ -259,6 +267,8 @@ source: desktop
 
 `created` is a timezone-aware local timestamp. The body follows the blank line after the frontmatter.
 
+Line endings are normalized to LF. Intentional trailing blank lines in the captured text are preserved; if the text has no final newline, one is added. Empty or whitespace-only captures are rejected and do not create a file.
+
 Filename format: `YYYY-MM-DD-HHMMSS.md`. If already taken, Obsidrop tries a numeric suffix (`-01`, `-02`, etc.). Exclusive creation (`x` mode) fails rather than replacing an existing file. The destination is revalidated before writing and checked to remain inside the selected vault.
 
 ## 11. Configuration, logs, and stored data
@@ -273,6 +283,8 @@ On Windows, Obsidrop stores application settings and logs outside the vault:
 ```
 
 The configuration contains the selected vault path and relative capture folder. Logs record application events and errors, not the body of captured notes. The vault receives only Markdown files the user explicitly saves.
+
+If the log directory is temporarily unavailable at startup, Obsidrop continues without failing. Saving settings retries log setup, so the log can recover without restarting the application.
 
 ## 12. Privacy and data handling
 
@@ -296,7 +308,7 @@ Vault-boundary checks are protective application logic, not a security sandbox a
 2. Check the status text in the main window.
 3. Another application may own `Ctrl + Alt + Space`; use **Capture now** as a fallback.
 4. Some games and exclusive-fullscreen applications may intercept global shortcuts. Try borderless-windowed mode.
-5. Restart Obsidrop after closing a conflicting application.
+5. After closing the conflicting application, click **Save settings** again to retry registration without restarting. Restart Obsidrop if the shortcut remains unavailable.
 
 ### The app says the vault cannot be accessed
 - Confirm that the selected folder still exists.
@@ -349,7 +361,9 @@ Run a syntax/bytecode compilation check:
 python -m compileall -q app.py obsidrop tests
 ```
 
-The automated suite tests configuration, path validation, Markdown generation, and filesystem behavior. The Windows global hotkey and actual Tk window focus behavior must be manually tested on Windows. Passing tests on Linux does not prove that the Windows API works.
+The automated suite tests configuration, path validation, Markdown generation, filesystem behavior, hotkey coordination with a mocked Win32 boundary, and logging recovery. The Windows global hotkey and actual Tk window focus behavior must be manually tested on Windows. Passing tests on Linux does not prove that the Windows API works.
+
+CI in `.github/workflows/tests.yml` runs the test suite and compilation check on Windows and Linux with Python 3.10 and 3.14. Linux CI may skip tests that import Tkinter when the Tk runtime is not installed; that skip does not verify Windows GUI behavior.
 
 ### Recommended reading order for contributors and AI agents
 1. [`AGENTS.md`](AGENTS.md) — project context, rules, invariants, and coding workflow.

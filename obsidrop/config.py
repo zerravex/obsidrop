@@ -67,6 +67,9 @@ def validate_capture_folder(capture_folder: str) -> str:
     if not isinstance(capture_folder, str):
         raise ConfigError("The capture folder must be text.")
 
+    if capture_folder != capture_folder.rstrip():
+        raise ConfigError("The capture folder cannot end with whitespace.")
+
     raw = capture_folder.strip()
     if not raw:
         raise ConfigError("Enter a destination folder inside your vault.")
@@ -81,9 +84,12 @@ def validate_capture_folder(capture_folder: str) -> str:
         raise ConfigError("The capture folder cannot contain empty, '.' or '..' path segments.")
 
     reserved_names = {
-        "CON", "PRN", "AUX", "NUL",
+        "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$",
         *(f"COM{i}" for i in range(1, 10)),
         *(f"LPT{i}" for i in range(1, 10)),
+        # Windows 11 also treats these superscript variants as device names.
+        "COM¹", "COM²", "COM³",
+        "LPT¹", "LPT²", "LPT³",
     }
     invalid_characters = set('<>:"|?*')
 
@@ -92,7 +98,10 @@ def validate_capture_folder(capture_folder: str) -> str:
             raise ConfigError(f"The folder name {part!r} contains characters Windows does not allow.")
         if part.endswith((" ", ".")):
             raise ConfigError(f"The folder name {part!r} cannot end with a space or period.")
-        if part.split(".", 1)[0].upper() in reserved_names:
+        # Windows ignores trailing spaces before the extension and compares
+        # device names case-insensitively.
+        base_name = part.split(".", 1)[0].rstrip(" .").upper()
+        if base_name in reserved_names:
             raise ConfigError(f"The folder name {part!r} is reserved by Windows.")
 
     return "/".join(parts)
@@ -174,11 +183,14 @@ class ConfigStore:
         if not isinstance(raw, dict):
             raise ConfigError("The settings file has an invalid structure. Choose your vault again.")
 
-        version = raw.get("schema_version", 0)
-        if version != CONFIG_SCHEMA_VERSION:
+        version = raw.get("schema_version")
+        # bool is a subclass of int in Python, and JSON numbers such as 1.0
+        # compare equal to 1. Require the exact integer type so malformed or
+        # future schema markers are not silently accepted.
+        if type(version) is not int or version != CONFIG_SCHEMA_VERSION:
             raise ConfigError(
-                f"Unsupported settings version ({version}). "
-                "This v0.0.1 build expects settings version 1."
+                f"Unsupported settings version ({version!r}). "
+                f"This v0.0.1 build expects settings version {CONFIG_SCHEMA_VERSION}."
             )
 
         try:
