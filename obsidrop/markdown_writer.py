@@ -25,7 +25,11 @@ def render_markdown(content: str, created_at: datetime | None = None) -> str:
         moment = moment.astimezone()
     timestamp = moment.isoformat(timespec="seconds")
     # JSON double-quoted strings are valid YAML scalars and safely quote the timestamp.
-    body = content.rstrip("\r\n")
+    # Normalize line endings and ensure exactly one final newline without removing
+    # intentional trailing blank lines from the user's content.
+    body = content.replace("\r\n", "\n").replace("\r", "\n")
+    if body.endswith("\n"):
+        body = body[:-1]
     return (
         "---\n"
         f"created: {json.dumps(timestamp)}\n"

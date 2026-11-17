@@ -47,6 +47,8 @@ python -m compileall -q app.py obsidrop tests
 
 The global hotkey is Windows-specific. Run the manual test matrix in `TEST_PLAN.md` on Windows.
 
+CI (`.github/workflows/tests.yml`) runs the same unit-test and compilation commands on Windows and Linux for Python 3.10 and 3.14 using the GitHub-hosted runners. Linux runners may skip tests that import Tkinter when the Tk runtime is unavailable. CI does not replace the manual Windows hotkey and GUI checks.
+
 ## 5. Suggested AI-assisted workflow
 
 1. Read `AGENTS.md`, `PRODUCT_SPEC.md`, and `ARCHITECTURE.md`.
