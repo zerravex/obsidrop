@@ -1,0 +1,9 @@
+[project]
+name = "obsidrop"
+version = "0.0.1"
+description = "A lightweight local-first desktop capture utility for Obsidian vaults."
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.unittest]
+start-directory = "tests"
