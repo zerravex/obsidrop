@@ -15,6 +15,7 @@ jobs:
   test:
     name: Python ${{ matrix.python-version }} / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     strategy:
       # Do not cancel the remaining combinations when one fails, so every
       # supported Python version and OS reports its own result.

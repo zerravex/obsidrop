@@ -36,7 +36,7 @@ class ObsidropApp:
         self.hotkey_manager = HotkeyManager(self.event_queue)
         self.config: AppConfig | None = None
         self.capture_window: CaptureWindow | None = None
-        self._hotkey_attempted = False
+        self._hotkey_unsupported = False
 
         self.vault_var = tk.StringVar()
         self.folder_var = tk.StringVar(value=DEFAULT_CAPTURE_FOLDER)
@@ -143,6 +143,9 @@ class ObsidropApp:
             self.vault_var.set(selected)
 
     def save_settings(self) -> None:
+        # Retry logging setup in case the log directory was unavailable at
+        # startup and has since become accessible.
+        self.logger = configure_logging(self.config_store.config_dir)
         try:
             checked = validate_config(self.vault_var.get(), self.folder_var.get())
             self.config_store.save(checked)
@@ -163,16 +166,22 @@ class ObsidropApp:
         self._activate_hotkey()
 
     def _activate_hotkey(self) -> None:
-        if self._hotkey_attempted or self.config is None:
+        if self.config is None or self._hotkey_unsupported:
             return
 
-        self._hotkey_attempted = True
+        # start() is idempotent while the listener is running. A previous
+        # registration failure is deliberately retryable after the user
+        # resolves a shortcut conflict and saves settings again.
+        if self.hotkey_manager.is_running:
+            return
+
         try:
             self.hotkey_manager.start()
             self.hotkey_var.set("Global shortcut active: Ctrl + Alt + Space")
             self.status_var.set("Ready. Press Ctrl + Alt + Space from any application to capture.")
             self.logger.info("Global shortcut registered.")
         except HotkeyNotSupportedError:
+            self._hotkey_unsupported = True
             self.hotkey_var.set("Global shortcut: Windows only (manual Capture Now remains available)")
             self.status_var.set("Settings saved. Use Capture Now; the global shortcut requires Windows.")
             self.logger.info("Global hotkey unavailable on this operating system.")

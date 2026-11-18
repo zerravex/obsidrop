@@ -20,6 +20,7 @@ class HotkeyNotSupportedError(HotkeyError):
 # Windows message and modifier constants.
 WM_HOTKEY = 0x0312
 WM_QUIT = 0x0012
+PM_NOREMOVE = 0x0000
 MOD_ALT = 0x0001
 MOD_CONTROL = 0x0002
 MOD_NOREPEAT = 0x4000
@@ -59,10 +60,28 @@ class HotkeyManager:
         self._thread_id: int | None = None
         self._startup_error: str | None = None
         self._user32 = None
+        self._registered = False
+        self._stop_requested = False
+        self._runtime_error_reported = False
+        self._runtime_error_lock = threading.Lock()
 
     @property
     def is_running(self) -> bool:
-        return self._thread is not None and self._thread.is_alive() and self._startup_error is None
+        return (
+            self._thread is not None
+            and self._thread.is_alive()
+            and self._registered
+            and self._startup_error is None
+        )
+
+    def _report_runtime_error(self, message: str) -> None:
+        """Send at most one runtime failure event for the current worker."""
+
+        with self._runtime_error_lock:
+            if self._runtime_error_reported:
+                return
+            self._runtime_error_reported = True
+            self.event_queue.put(f"hotkey_error:{message}")
 
     def start(self, timeout: float = 3.0) -> None:
         """Start the hotkey worker and wait until registration succeeds or fails."""
@@ -70,11 +89,21 @@ class HotkeyManager:
         if os.name != "nt":
             raise HotkeyNotSupportedError("The global keyboard shortcut is supported on Windows only.")
 
-        if self.is_running:
-            return
+        if self._thread is not None and self._thread.is_alive():
+            if self.is_running:
+                return
+            # A worker that has just failed may still be unwinding. Do not start
+            # a second listener while the first one may still own the shortcut.
+            self._thread.join(timeout)
+            if self._thread.is_alive():
+                raise HotkeyError("The previous global shortcut listener is still shutting down.")
 
         self._ready = threading.Event()
         self._startup_error = None
+        self._registered = False
+        self._stop_requested = False
+        with self._runtime_error_lock:
+            self._runtime_error_reported = False
         self._thread = threading.Thread(
             target=self._message_pump,
             name="ObsidropHotkey",
@@ -88,11 +117,18 @@ class HotkeyManager:
 
         if self._startup_error:
             raise HotkeyError(self._startup_error)
+        if self._stop_requested:
+            raise HotkeyError("Global shortcut startup was interrupted by shutdown.")
 
     def _message_pump(self) -> None:
         """Register the hotkey and process messages on this worker thread."""
 
+        hotkey_registered = False
+        startup_complete = False
         try:
+            if self._stop_requested:
+                return
+
             user32 = ctypes.WinDLL("user32", use_last_error=True)
             kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
             self._user32 = user32
@@ -112,37 +148,72 @@ class HotkeyManager:
             ]
             user32.PostThreadMessageW.restype = wintypes.BOOL
             kernel32.GetCurrentThreadId.restype = wintypes.DWORD
+            user32.PeekMessageW.argtypes = [
+                ctypes.POINTER(MSG),
+                wintypes.HWND,
+                wintypes.UINT,
+                wintypes.UINT,
+                wintypes.UINT,
+            ]
+            user32.PeekMessageW.restype = wintypes.BOOL
 
             self._thread_id = int(kernel32.GetCurrentThreadId())
+            message = MSG()
+            # PeekMessage creates this thread's message queue. Creating it
+            # before readiness ensures a stop request can post WM_QUIT rather
+            # than leaving GetMessage blocked on a queue that does not exist.
+            user32.PeekMessageW(ctypes.byref(message), None, 0, 0, PM_NOREMOVE)
+
+            if self._stop_requested:
+                return
+
             modifiers = MOD_CONTROL | MOD_ALT | MOD_NOREPEAT
-            registered = user32.RegisterHotKey(None, HOTKEY_ID, modifiers, VK_SPACE)
-            if not registered:
+            registered_hotkey = user32.RegisterHotKey(None, HOTKEY_ID, modifiers, VK_SPACE)
+            if not registered_hotkey:
+                if self._stop_requested:
+                    return
                 error_code = ctypes.get_last_error()
                 self._startup_error = (
                     f"Could not register Ctrl+Alt+Space (Windows error {error_code}). "
                     "Another application may already be using this shortcut. "
                     "You can still use the Capture Now button."
                 )
-                self._ready.set()
                 return
 
+            hotkey_registered = True
+            if self._stop_requested:
+                return
+
+            self._registered = True
+            startup_complete = True
             self._ready.set()
-            message = MSG()
-            while True:
+            while not self._stop_requested:
                 result = user32.GetMessageW(ctypes.byref(message), None, 0, 0)
                 if result == -1:
                     error_code = ctypes.get_last_error()
-                    self.event_queue.put(f"hotkey_error:Windows message loop failed (error {error_code}).")
+                    self._report_runtime_error(
+                        f"Windows message loop failed (error {error_code})."
+                    )
                     break
                 if result == 0:  # WM_QUIT
+                    if not self._stop_requested:
+                        self._report_runtime_error(
+                            "The global shortcut listener stopped unexpectedly."
+                        )
                     break
                 if message.message == WM_HOTKEY and message.wParam == HOTKEY_ID:
                     self.event_queue.put("capture")
         except Exception as exc:  # Keep native API failures visible to the main UI.
-            self._startup_error = f"Global shortcut initialization failed: {exc}"
-            self._ready.set()
+            if startup_complete:
+                self._report_runtime_error(
+                    f"Global shortcut worker stopped unexpectedly: {exc}"
+                )
+            else:
+                self._startup_error = f"Global shortcut initialization failed: {exc}"
         finally:
-            if self._thread_id is not None and self._user32 is not None:
+            self._registered = False
+            self._ready.set()
+            if hotkey_registered and self._user32 is not None:
                 try:
                     self._user32.UnregisterHotKey(None, HOTKEY_ID)
                 except Exception:
@@ -157,14 +228,28 @@ class HotkeyManager:
         if thread is None or not thread.is_alive():
             return
 
+        self._stop_requested = True
+        post_failure: str | None = None
         if thread_id is not None and self._user32 is not None:
             try:
-                self._user32.PostThreadMessageW(
+                posted = self._user32.PostThreadMessageW(
                     thread_id, WM_QUIT, 0, 0
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                post_failure = f"PostThreadMessageW raised {exc!r}"
+            else:
+                if not posted:
+                    post_failure = (
+                        "PostThreadMessageW failed with Windows error "
+                        f"{ctypes.get_last_error()}"
+                    )
         thread.join(timeout)
         if thread.is_alive():
             # A daemon worker prevents shutdown from hanging, but report the issue.
-            self.event_queue.put("hotkey_error:Windows did not stop the hotkey worker cleanly.")
+            message = "Windows did not stop the hotkey worker cleanly."
+            if post_failure is not None:
+                message = (
+                    "Windows did not stop the hotkey worker cleanly "
+                    f"({post_failure})."
+                )
+            self._report_runtime_error(message)

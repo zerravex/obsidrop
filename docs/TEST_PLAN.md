@@ -12,16 +12,22 @@ The repository uses Python's standard-library `unittest` framework. Run from the
 python -m unittest discover -v
 ```
 
+CI (`.github/workflows/tests.yml`) runs the same suite on GitHub-hosted Windows and Linux runners with Python 3.10 and 3.14, followed by the compilation check. Linux runs may skip tests that import Tkinter when the Tk runtime is unavailable; native Windows hotkey and GUI behavior still requires the manual matrix below.
+
 ### Configuration and path validation
 
 - Missing configuration returns `None`.
 - Valid configuration saves and loads correctly.
 - Malformed JSON produces a recoverable configuration error.
+- The schema version must be the exact integer `1`; booleans, floats, strings, a missing version, and older or newer versions are rejected.
 - Missing vault paths are rejected.
 - Valid nested relative folders are accepted.
 - Backslashes normalize to forward slashes.
 - Empty paths, absolute paths, drive-qualified paths, parent traversal, reserved names, and invalid Windows characters are rejected.
-- Where supported, a symlink pointing outside the vault is rejected.
+- Common reserved device names, superscript-digit variants, mixed capitalization, and reserved names with extensions are rejected.
+- Invalid trailing whitespace and trailing periods are rejected.
+- Valid folder names that merely resemble reserved names are accepted.
+- Where supported, a symlink or junction destination outside the vault is rejected, while one that resolves inside the vault is accepted.
 
 ### Markdown generation and file creation
 
@@ -30,11 +36,34 @@ python -m unittest discover -v
 - Content is saved as UTF-8.
 - Bangla and other Unicode characters remain intact.
 - Multiline content remains multiline.
+- Content with no final newline receives exactly one final newline.
+- Intentional trailing blank lines are preserved.
+- LF, CRLF, and lone carriage-return inputs are normalized to LF.
+- Trailing spaces within content lines are preserved.
 - Empty or whitespace-only content is rejected.
 - The destination folder is created on demand.
+- Nested destination folders are created correctly.
 - Repeated captures with the same timestamp create unique filenames.
-- Original file content remains unchanged after a collision.
-- A symlinked destination outside the vault is rejected where symlink testing is supported.
+- Original file content remains unchanged after a collision and after a failed write.
+- Invalid destinations, directory-creation failures, and file-write failures produce a `CaptureError` without silently overwriting an existing note.
+- A destination symlink or junction outside the vault is rejected where link testing is supported.
+
+### Hotkey coordination
+
+- A failed startup registration can be retried.
+- Repeated `start()` calls while the listener is running do not register a second listener.
+- A runtime message-loop error or unexpected worker exit places one `hotkey_error:` token in the event queue.
+- A startup registration failure is not also reported as a runtime error.
+- Non-Windows platforms raise a specific unsupported-platform error.
+- These tests use a mocked Win32 boundary. They do not verify native Windows registration or focus behavior.
+
+### Logging
+
+- Logging initialization creates one rotating file handler.
+- Repeated initialization does not duplicate handlers or output.
+- A failed initialization recovers when the log directory becomes available.
+- Failed initialization adds only one fallback `NullHandler`.
+- Saving settings retries logging initialization after a startup failure.
 
 ### Compilation check
 
@@ -64,6 +93,9 @@ These checks must be run on a real Windows 10 or Windows 11 desktop. Linux tests
 | M-14 | Use an invalid/unavailable destination | Error is visible and capture text remains in the window. |
 | M-15 | Quit application | Hotkey is released and can be registered again after restart. |
 | M-16 | Run while a game is foreground | Shortcut behavior is observed; document any game-specific interception. |
+| M-17 | Close the app that owns the shortcut, then click **Save settings** again | Registration is retried without restarting Obsidrop and succeeds. |
+| M-18 | Save text with intentional trailing blank lines | The saved Markdown body retains the blank lines and ends with the expected newline. |
+| M-19 | Click **Save settings** repeatedly while the shortcut is active | No duplicate registration or duplicate hotkey events occur. |
 
 ## 4. Data-safety checks
 

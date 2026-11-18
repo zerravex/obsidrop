@@ -45,9 +45,9 @@ python -m unittest discover -v
 python -m compileall -q app.py obsidrop tests
 ```
 
-GitHub Actions runs both checks on Windows and Ubuntu with Python 3.14 and 3.15 (`.github/workflows/tests.yml`). The application still declares Python 3.10+ support in `pyproject.toml`.
-
 The global hotkey is Windows-specific. Run the manual test matrix in `TEST_PLAN.md` on Windows.
+
+CI (`.github/workflows/tests.yml`) runs the same unit-test and compilation commands on Windows and Linux for Python 3.14 and 3.15 using the GitHub-hosted runners. Linux runners may skip tests that import Tkinter when the Tk runtime is unavailable. CI does not replace the manual Windows hotkey and GUI checks. `pyproject.toml` still declares Python 3.10+ support, but 3.10–3.13 are no longer exercised by CI; restoring that coverage is a follow-up decision.
 
 ## 5. Suggested AI-assisted workflow
 

@@ -74,8 +74,9 @@ The configuration directory is outside the vault. The file is written to a tempo
 7. The resolved destination is checked again to prevent symlink escapes.
 8. The writer builds a timestamped filename.
 9. The file is opened with exclusive-create mode (`x`). If it already exists, a numeric suffix is tried.
-10. The writer writes UTF-8 Markdown and flushes the file.
-11. Only after a successful write does the UI close the capture window and report the saved path.
+10. The writer normalizes body line endings to LF, preserves intentional trailing blank lines, and ensures one final newline.
+11. The writer writes UTF-8 Markdown and flushes the file.
+12. Only after a successful write does the UI close the capture window and report the saved path.
 
 ## 5. Threading model
 
@@ -83,13 +84,15 @@ Tkinter is not thread-safe. All widget operations stay on the main thread.
 
 `RegisterHotKey` with a null window handle associates the hotkey with the thread that registered it. Therefore `hotkeys.py` owns a dedicated worker thread that registers the shortcut and runs a Win32 message loop. When `WM_HOTKEY` arrives, that thread places the string token `capture` in a `queue.Queue`. The GUI checks the queue periodically using `root.after` and opens the capture window itself.
 
+Startup registration failures are raised to the caller. If the message loop later fails or the worker exits unexpectedly, the worker places a `hotkey_error:` token in the same queue so the GUI can stop presenting the shortcut as active. `HotkeyManager.is_running` is true only while the worker is alive and the hotkey remains registered. A failed startup attempt is retryable; repeated calls while the listener is running do not register a second listener.
+
 On shutdown, the GUI posts `WM_QUIT` to the hotkey worker. The worker exits its message loop and unregisters the shortcut in its `finally` block.
 
 ## 6. Filesystem safety
 
 - The selected vault root is resolved and must exist as a directory.
 - The capture folder is normalized as a relative path.
-- Absolute paths, drive-qualified paths, `..`, invalid Windows characters, reserved device names, and trailing spaces/periods are rejected.
+- Absolute paths, drive-qualified paths, `..`, invalid Windows characters, reserved device names (including superscript COM/LPT variants), trailing whitespace, and trailing periods are rejected.
 - The destination is resolved and checked to remain under the vault.
 - The writer repeats the containment check after creating the directory, covering pre-existing symlink components.
 - The final note is opened exclusively. Existing notes are never intentionally replaced.
@@ -100,8 +103,10 @@ This is a practical local-desktop safety boundary, not a hardened security sandb
 
 - Invalid configuration: show a recoverable message in the main window or dialog.
 - Hotkey conflict: explain that the shortcut is unavailable and keep the manual button enabled.
+- Hotkey worker failure: report it through the event queue and stop presenting the shortcut as active.
 - Empty text: reject save and keep the capture window open.
 - File permission/disk error: show an error and keep the editor open.
+- Logging setup failure: continue without failing; retry when settings are saved.
 - Unexpected application errors: log diagnostic details without logging captured note bodies.
 
 ## 8. Future extension points

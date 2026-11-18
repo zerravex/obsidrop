@@ -8,14 +8,20 @@ from pathlib import Path
 
 
 def configure_logging(config_dir: Path) -> logging.Logger:
-    """Configure a rotating log file outside the user's vault."""
+    """Configure a rotating log file outside the user's vault.
+
+    Calling this again after an earlier failure can recover once the log
+    directory becomes available. Existing file handlers are reused so repeated
+    calls never duplicate log output.
+    """
 
     logger = logging.getLogger("obsidrop")
     logger.setLevel(logging.INFO)
     logger.propagate = False
 
-    if logger.handlers:
-        return logger
+    for handler in logger.handlers:
+        if isinstance(handler, RotatingFileHandler):
+            return logger
 
     try:
         log_dir = config_dir / "logs"
@@ -32,7 +38,16 @@ def configure_logging(config_dir: Path) -> logging.Logger:
         logger.addHandler(handler)
     except OSError:
         # Logging must not prevent the user from capturing notes when the
-        # configuration directory is temporarily unavailable.
-        logger.addHandler(logging.NullHandler())
+        # configuration directory is temporarily unavailable. A caller may
+        # invoke this function again later to recover.
+        if not any(isinstance(existing, logging.NullHandler) for existing in logger.handlers):
+            logger.addHandler(logging.NullHandler())
+        return logger
+
+    # Remove the fallback handler(s) from an earlier failed initialization.
+    for existing in list(logger.handlers):
+        if isinstance(existing, logging.NullHandler):
+            logger.removeHandler(existing)
+            existing.close()
 
     return logger
