@@ -42,6 +42,7 @@ All notable project changes are recorded here. This project is currently an earl
 - Vault-relative path validation and symlink containment checks.
 - JSON configuration outside the vault.
 - Rotating application log.
+- Standard MIT license.
 - Automated tests for configuration, path validation, Markdown rendering, and file creation.
 - Agent instructions, product specification, architecture, development, privacy, test plan, and roadmap documentation.
 

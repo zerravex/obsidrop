@@ -5,7 +5,7 @@
 **Primary platform:** Windows 10 and Windows 11  
 **Minimum Python:** 3.10  
 **Runtime dependencies:** Python standard library only  
-**License:** Not yet selected
+**License:** MIT
 
 Obsidrop is a lightweight, local-first desktop utility for capturing thoughts from anywhere on your Windows desktop and saving them as Markdown files inside a folder you choose—usually an [Obsidian](https://obsidian.md/) vault.
 
