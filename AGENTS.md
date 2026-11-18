@@ -65,7 +65,7 @@ Obsidrop/
 ├── .gitignore                   # Excludes local/generated files
 ├── .github/
 │   └── workflows/
-│       └── tests.yml            # CI: Windows/Linux, Python 3.10 and 3.14
+│       └── tests.yml            # CI: Windows/Linux, Python 3.14 and 3.15
 ├── AGENTS.md                    # This file: AI coding-agent instructions
 ├── README.md                    # User-facing overview and instructions
 ├── CHANGELOG.md                 # Version history
@@ -270,7 +270,7 @@ python -m compileall -q app.py obsidrop tests
 - Tests must not depend on the user's real `%APPDATA%`, vault, or notes.
 - Symlink and junction tests may need to skip where the host/account cannot create them.
 - Linux/macOS test success does not verify Windows APIs or Windows Tk focus behavior.
-- CI (`.github/workflows/tests.yml`) runs the suite on Windows and Linux for Python 3.10 and 3.14; it does not replace manual Windows verification.
+- CI (`.github/workflows/tests.yml`) runs the suite on Windows and Linux for Python 3.14 and 3.15; 3.10–3.13 remain allowed by `pyproject.toml` but are no longer covered by CI. CI does not replace manual Windows verification.
 - Never claim a manual Windows test passed unless it was actually performed on Windows.
 
 Manual Windows checks include first launch, vault selection, config persistence, hotkey from Notepad/browser, saving with Obsidian closed, Bangla/multiline text, save/cancel/error draft retention, collision behavior, hotkey conflict fallback, and shutdown releasing the shortcut. See `docs/TEST_PLAN.md` for the full matrix.
