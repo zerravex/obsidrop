@@ -12,7 +12,7 @@ The repository uses Python's standard-library `unittest` framework. Run from the
 python -m unittest discover -v
 ```
 
-CI (`.github/workflows/tests.yml`) runs the same suite on GitHub-hosted Windows and Linux runners with Python 3.10 and 3.14, followed by the compilation check. Linux runs may skip tests that import Tkinter when the Tk runtime is unavailable; native Windows hotkey and GUI behavior still requires the manual matrix below.
+CI (`.github/workflows/tests.yml`) runs the same suite on GitHub-hosted Windows and Linux runners with Python 3.14 and 3.15, followed by the compilation check. Linux runs may skip tests that import Tkinter when the Tk runtime is unavailable; native Windows hotkey and GUI behavior still requires the manual matrix below.
 
 ### Configuration and path validation
 
@@ -71,7 +71,38 @@ CI (`.github/workflows/tests.yml`) runs the same suite on GitHub-hosted Windows 
 python -m compileall -q app.py obsidrop tests
 ```
 
-## 3. Manual Windows test matrix
+### Release build checks
+
+`scripts/build_release.py` is run by both local release builds and the release workflow. It must fail if any of these checks fail:
+
+- `pyproject.toml` and `obsidrop/__init__.py` report different versions.
+- A supplied Git tag does not equal `v<project version>`.
+- The host is not Windows or the interpreter is not Python 3.14.
+- PyInstaller is missing or the build does not produce `Obsidrop.exe`.
+- The executable is not x64 or is not a Windows GUI-subsystem executable.
+- The bundled Python runtime, Tkinter extension, or Tcl/Tk runtime libraries or script data are missing.
+- The ZIP contains an extra nesting level, omits `Obsidrop.exe`, `_internal/`, `README.txt`, or `LICENSE.txt`, or contains development files.
+- The checksum file does not match the finalized ZIP.
+
+## 3. Packaged application verification
+
+These checks apply to the portable `Obsidrop-v0.0.1-Windows-x64.zip` release. They are separate from the source-run matrix.
+
+| ID | Scenario | Expected result |
+|---|---|---|
+| P-01 | Extract the ZIP and inspect the top-level folder | `Obsidrop-0.0.1-Windows-x64` contains `Obsidrop.exe`, `_internal/`, `README.txt`, and `LICENSE.txt`. |
+| P-02 | Double-click `Obsidrop.exe` on Windows | The Tkinter main window appears and no black console window is created. |
+| P-03 | Configure a disposable vault in the packaged app | Settings save and a capture writes one Markdown file to the configured folder. |
+| P-04 | Inspect `%APPDATA%\Obsidrop` after the packaged app runs | `config.json` and `logs\obsidrop.log` are used; no settings or logs are written into the extracted application folder. |
+| P-05 | Press `Ctrl + Alt + Space` while another application is foreground | The capture window opens, or the app reports a shortcut conflict and leaves **Capture now** usable. |
+| P-06 | Quit the packaged app and relaunch it | The shortcut is released and can be registered again. |
+| P-07 | Run the packaged app on a Windows account or VM without Python installed | The application starts normally. |
+| P-08 | Verify the SHA-256 checksum before extraction | The hash matches the `.sha256` release asset. |
+| P-09 | Repeat the smoke test on Windows 11 if available | The main window appears, no console appears, and a capture succeeds. |
+
+The build script verifies the PE GUI subsystem programmatically, but a human should still confirm that no console window is visible when double-clicking the executable. Do not mark Windows 11 as verified unless it was actually tested.
+
+## 4. Manual Windows test matrix
 
 These checks must be run on a real Windows 10 or Windows 11 desktop. Linux tests cannot validate native hotkey registration or Tk window focus behavior on Windows.
 
@@ -97,18 +128,19 @@ These checks must be run on a real Windows 10 or Windows 11 desktop. Linux tests
 | M-18 | Save text with intentional trailing blank lines | The saved Markdown body retains the blank lines and ends with the expected newline. |
 | M-19 | Click **Save settings** repeatedly while the shortcut is active | No duplicate registration or duplicate hotkey events occur. |
 
-## 4. Data-safety checks
+## 5. Data-safety checks
 
 - Make a test vault containing an existing note with the same timestamp-derived name and verify it is untouched.
 - Test a destination folder with an outside-pointing directory symlink where Windows permissions allow creating one.
 - Test a disconnected/removable vault drive and confirm the app reports a failure rather than silently changing destinations.
 - Inspect the log and verify captured note bodies are not logged.
 
-## 5. Test evidence
+## 6. Test evidence
 
 For each manual release test, record:
 
-- Windows version and Python version.
+- Windows version and whether the test used the source app or the packaged app.
+- Python version for source runs; package version and ZIP filename for packaged runs.
 - Test ID.
 - Pass/fail.
 - Steps and observed behavior.

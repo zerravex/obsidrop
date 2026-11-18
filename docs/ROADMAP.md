@@ -80,7 +80,7 @@ This roadmap is a planning document, not a promise that every item will ship. Pr
 
 - Stable configuration migration strategy.
 - Full Windows compatibility testing.
-- Installer or clean portable distribution.
+- Installer and code-signed distribution.
 - Upgrade and recovery documentation.
 - Security/privacy review of any extension or local API.
 - Documented support policy and release process.

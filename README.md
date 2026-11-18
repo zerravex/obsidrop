@@ -1,10 +1,10 @@
 # Obsidrop
 
-**Version:** `0.0.1`  
-**Status:** Early prototype / first development release  
-**Primary platform:** Windows 10 and Windows 11  
-**Minimum Python:** 3.10  
-**Runtime dependencies:** Python standard library only  
+**Version:** `0.0.1`<br>
+**Status:** Early first release<br>
+**Primary platform:** Windows 10 and Windows 11<br>
+**Minimum Python:** 3.14 for running from source; the portable release includes Python<br>
+**Runtime dependencies:** Python standard library only<br>
 **License:** MIT
 
 Obsidrop is a lightweight, local-first desktop utility for capturing thoughts from anywhere on your Windows desktop and saving them as Markdown files inside a folder you choose—usually an [Obsidian](https://obsidian.md/) vault.
@@ -53,6 +53,7 @@ The timestamp is illustrative; the actual timestamp and UTC offset come from the
 ## 2. What v0.0.1 includes
 
 - Standalone Python desktop application.
+- Portable Windows x64 build with the Python runtime and Tcl/Tk included; Python does not need to be installed.
 - Global Windows shortcut: `Ctrl + Alt + Space`.
 - Floating multiline capture window.
 - `Ctrl + Enter` to save and `Esc` to cancel.
@@ -80,38 +81,61 @@ These are intentionally excluded from the first release:
 - Browser extension or Obsidian companion plugin.
 - AI categorization, AI API calls, or cloud service.
 - Accounts, telemetry, analytics, or network requests.
-- Database, background service, installer, or packaged `.exe`.
+- Database, background service, installer, code signing, or automatic updates.
 
 Potential later features are documented in [`docs/ROADMAP.md`](docs/ROADMAP.md). A roadmap item is not part of the current release.
 
 ## 4. Requirements
 
 - Windows 10 or Windows 11 for the intended full experience.
-- Python 3.10 or newer. Python 3.12+ is a sensible choice for a new installation.
-- Tkinter support. It is normally included with the standard Windows Python installer; ensure Tcl/Tk support is selected.
+- For source runs: Python 3.14 or newer with Tcl/Tk support. Tcl/Tk is normally included with the standard Windows Python installer; ensure it is selected.
+- For the portable release: no Python installation and no separate Tk installation are required.
 - A folder in which to store Markdown notes. An existing Obsidian vault is recommended but not technically required.
 
-No third-party Python packages are required by v0.0.1. There is no `pip install` step.
+No third-party Python packages are required by v0.0.1 at runtime. There is no `pip install` step for normal use. PyInstaller is used only to build the portable release.
 
-## 5. Install and run from source
+## 5. Install and run
 
-### Option A — Windows launcher
+### Option A — Portable release (recommended for normal use)
 
-1. Install Python for Windows from [python.org](https://www.python.org/downloads/windows/).
+Download the official v0.0.1 assets from the [GitHub Releases page](https://github.com/zerravex/obsidrop/releases):
+
+- `Obsidrop-v0.0.1-Windows-x64.zip`
+- `Obsidrop-v0.0.1-Windows-x64.zip.sha256`
+
+1. Extract the ZIP.
+2. Open the extracted `Obsidrop-0.0.1-Windows-x64` folder.
+3. Double-click `Obsidrop.exe`.
+4. Keep `Obsidrop.exe` and the `_internal` folder together.
+
+Python does not need to be installed. The portable build includes the Python runtime and Tcl/Tk.
+
+To verify the download in PowerShell:
+
+```powershell
+Get-FileHash -Algorithm SHA256 .\Obsidrop-v0.0.1-Windows-x64.zip
+Get-Content .\Obsidrop-v0.0.1-Windows-x64.zip.sha256
+```
+
+The hash printed by `Get-FileHash` must match the first value in the `.sha256` file. The second value must be the ZIP filename.
+
+### Option B — Windows launcher from source
+
+1. Install Python 3.14 or newer for Windows from [python.org](https://www.python.org/downloads/windows/).
 2. During installation, enable the Python launcher and Tcl/Tk support.
 3. Download and extract the Obsidrop project ZIP.
 4. Open the extracted `Obsidrop` folder.
 5. Double-click `run_obsidrop.bat`.
 
-The launcher creates a local `.venv` virtual environment if one does not exist, then starts Obsidrop. It does not install third-party packages.
+The launcher creates a local `.venv` virtual environment if one does not exist, then starts Obsidrop. It does not install third-party runtime packages.
 
-### Option B — PowerShell
+### Option C — PowerShell from source
 
 Open PowerShell in the extracted project folder and run:
 
 ```powershell
 # Create an isolated Python environment (first run only)
-py -3 -m venv .venv
+py -3.14 -m venv .venv
 
 # Start the application
 .venv\Scripts\python.exe app.py
@@ -205,14 +229,19 @@ Obsidrop/
 ├── app.py                       # Main source launcher
 ├── run_obsidrop.bat            # Windows quick launcher
 ├── requirements.txt             # No third-party runtime packages required
+├── requirements-build.txt       # Pinned PyInstaller build dependency
 ├── pyproject.toml               # Project metadata and Python version
 ├── .gitignore                   # Excludes local/generated files
 ├── .github/
 │   └── workflows/
-│       └── tests.yml            # CI: Windows/Linux, Python 3.10 and 3.14
+│       ├── tests.yml            # CI: Windows/Linux, Python 3.14 and 3.15
+│       └── release.yml          # Manual builds and tag-triggered releases
 ├── AGENTS.md                    # Persistent context and instructions for AI agents
 ├── README.md                    # This user-facing guide
+├── README-portable.txt          # Source for the packaged README.txt
 ├── CHANGELOG.md                 # Version history
+├── scripts/
+│   └── build_release.py        # Portable build, ZIP, and checksum creation
 │
 ├── obsidrop/                   # Application source package
 │   ├── __init__.py              # Package version
@@ -340,12 +369,12 @@ Open `%APPDATA%\Obsidrop\logs\obsidrop.log`. Logs may contain local file paths a
 
 ## 14. Development and testing
 
-Prerequisites: Python 3.10+ with Tkinter. Git and VS Code are recommended but optional.
+Prerequisites: Python 3.14+ with Tkinter. Git and VS Code are recommended but optional.
 
 Create an environment and run the app:
 
 ```powershell
-py -3 -m venv .venv
+py -3.14 -m venv .venv
 .venv\Scripts\python.exe app.py
 ```
 
@@ -363,7 +392,9 @@ python -m compileall -q app.py obsidrop tests
 
 The automated suite tests configuration, path validation, Markdown generation, filesystem behavior, hotkey coordination with a mocked Win32 boundary, and logging recovery. The Windows global hotkey and actual Tk window focus behavior must be manually tested on Windows. Passing tests on Linux does not prove that the Windows API works.
 
-CI in `.github/workflows/tests.yml` runs the test suite and compilation check on Windows and Linux with Python 3.10 and 3.14. Linux CI may skip tests that import Tkinter when the Tk runtime is not installed; that skip does not verify Windows GUI behavior.
+CI in `.github/workflows/tests.yml` runs the test suite and compilation check on Windows and Linux with Python 3.14 and 3.15. Linux CI may skip tests that import Tkinter when the Tk runtime is not installed; that skip does not verify Windows GUI behavior.
+
+To build the portable release locally, see [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md). The release workflow invokes the same `scripts/build_release.py` entry point used locally.
 
 ### Recommended reading order for contributors and AI agents
 1. [`AGENTS.md`](AGENTS.md) — project context, rules, invariants, and coding workflow.
@@ -384,10 +415,10 @@ Before changing behavior, an agent should inspect the source, identify the small
 - Browser metadata, selected text, screenshots, and attachments are not captured.
 - There is no automatic sync or backup system. Use your normal vault backup/sync process.
 - If a low-level disk write fails after a file is created, an incomplete file may remain. Obsidrop reports the error and does not silently delete the file.
-- The project is source-first; it is not a signed Windows installer or packaged executable.
-- The Windows GUI and hotkey still need real-machine verification.
+- A portable Windows x64 ZIP is provided; there is no installer, code signing, or automatic updater.
+- The packaged executable, including the global shortcut and a test capture, has been smoke-tested on Windows 10 x64. Windows 11 and the remaining manual test matrix still require owner verification.
 
-This is an early v0.0.1 prototype. Test it with a disposable vault before relying on it for important information.
+This is an early v0.0.1 release. Test it with a disposable vault before relying on it for important information.
 
 ## 16. Project documents
 

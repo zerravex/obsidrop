@@ -23,6 +23,8 @@ Thumbs.db
 *.log
 build/
 dist/
+release/
+.venv-build/
 *.spec
 
 # Local test vaults or user data
