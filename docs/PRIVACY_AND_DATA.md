@@ -28,6 +28,8 @@ On Windows, settings and logs live under:
 
 The settings file contains the vault path and configured capture folder. The rotating log records application events and errors. It is designed not to record note bodies.
 
+The Windows portable build uses the same `%APPDATA%\Obsidrop` locations. It does not write settings or logs into the extracted application folder or PyInstaller's temporary resource directory.
+
 ## User responsibilities
 
 - Choose a vault folder you control.

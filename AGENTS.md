@@ -22,7 +22,7 @@ Product goals:
 - Keep notes on the user's own computer in portable Markdown.
 - Avoid unnecessary services, dependencies, accounts, network access, and AI in the critical capture path.
 
-Current release: `0.0.1`, an early source-code prototype. Primary target: Windows 10/11. Minimum Python: 3.10. GUI: Tkinter/ttk. Runtime dependencies: Python standard library only. Do not describe this as a polished or fully Windows-verified release; the native hotkey and real GUI behavior require manual Windows testing.
+Current release: `0.0.1`, an early first release with a source application and a Windows x64 portable build. Primary target: Windows 10/11. Minimum Python: 3.14 for source use; the portable build includes Python. GUI: Tkinter/ttk. Runtime dependencies: Python standard library only. Do not describe this as a polished or fully Windows-verified release; the native hotkey and real GUI behavior require manual Windows testing.
 
 ## 2. Current scope
 
@@ -50,7 +50,8 @@ Current release: `0.0.1`, an early source-code prototype. Primary target: Window
 - Appending to daily notes or editing existing notes.
 - Browser extension or Obsidian companion plugin.
 - AI classification, AI API calls, cloud sync, accounts, telemetry, or analytics.
-- Database, installer, or packaged executable.
+- Database, installer, code signing, or automatic updates.
+- Creating Git tags or publishing GitHub Releases without an explicit owner request.
 
 These may appear in `docs/ROADMAP.md`. A roadmap item is a future possibility, **not a current requirement or permission to implement it**.
 
@@ -61,14 +62,19 @@ Obsidrop/
 ├── app.py                       # Simple launcher; calls obsidrop.main.main()
 ├── run_obsidrop.bat            # Windows launcher; creates .venv if needed
 ├── requirements.txt             # States that no third-party packages are needed
+├── requirements-build.txt       # Pinned PyInstaller build dependency
 ├── pyproject.toml               # Project metadata and Python minimum version
 ├── .gitignore                   # Excludes local/generated files
 ├── .github/
 │   └── workflows/
-│       └── tests.yml            # CI: Windows/Linux, Python 3.14 and 3.15
+│       ├── tests.yml            # CI: Windows/Linux, Python 3.14 and 3.15
+│       └── release.yml          # Manual builds and tag-triggered releases
 ├── AGENTS.md                    # This file: AI coding-agent instructions
 ├── README.md                    # User-facing overview and instructions
+├── README-portable.txt          # Source for the packaged README.txt
 ├── CHANGELOG.md                 # Version history
+├── scripts/
+│   └── build_release.py        # Portable build, ZIP, and checksum creation
 ├── obsidrop/                   # Application source package
 │   ├── __init__.py              # Package version
 │   ├── __main__.py              # Enables `python -m obsidrop`
@@ -247,13 +253,23 @@ Keep the UI deliberately simple. Do not add panels or settings without a documen
 ## 10. Environment and dependencies
 
 - Target OS: Windows 10/11.
-- Python: 3.10+.
+- Python: 3.14+ for source use.
 - GUI: built-in Tkinter/ttk.
 - Native hotkey: `ctypes` calls to Win32 `user32` and `kernel32`.
 - Tests: built-in `unittest`.
 - Runtime packages: no third-party dependencies.
 
 Before adding a dependency, explain: (1) the concrete requirement it solves, (2) why the standard library is insufficient, (3) maintenance/security/licensing/network implications, and (4) setup and packaging impact. Do not add packages just because a tutorial or coding agent commonly uses them.
+
+### Portable packaging and release
+
+- The Windows portable release uses Python 3.14 x64 and the PyInstaller version pinned in `requirements-build.txt`. PyInstaller is a build-time dependency only.
+- `scripts/build_release.py` is the single build entry point for local use and CI. It runs PyInstaller in one-folder, windowed mode, stages the distribution, creates the ZIP, and writes the SHA-256 checksum.
+- Do not switch to `--onefile`, omit `--windowed`, or add a console launcher. A packaged GUI launch must not create a console window.
+- Do not redirect configuration or logs into `dist`, `build`, `_internal`, or `sys._MEIPASS`. The `%APPDATA%\Obsidrop` locations remain the user-data locations.
+- Release assets are `Obsidrop-v<version>-Windows-x64.zip` and its `.sha256` file. The ZIP contains `Obsidrop-<version>-Windows-x64\Obsidrop.exe`, the PyInstaller runtime files, `README.txt`, and `LICENSE.txt`.
+- Manual workflow runs may build test artifacts only. Publishing requires a pushed tag that matches the project version.
+- Do not create a Git tag, publish a release, or push to `main` unless the owner explicitly asks.
 
 ## 11. Testing policy
 
@@ -270,7 +286,7 @@ python -m compileall -q app.py obsidrop tests
 - Tests must not depend on the user's real `%APPDATA%`, vault, or notes.
 - Symlink and junction tests may need to skip where the host/account cannot create them.
 - Linux/macOS test success does not verify Windows APIs or Windows Tk focus behavior.
-- CI (`.github/workflows/tests.yml`) runs the suite on Windows and Linux for Python 3.14 and 3.15; 3.10–3.13 remain allowed by `pyproject.toml` but are no longer covered by CI. CI does not replace manual Windows verification.
+- CI (`.github/workflows/tests.yml`) runs the suite on Windows and Linux for Python 3.14 and 3.15. Python 3.14 is the minimum supported version. CI does not replace manual Windows verification.
 - Never claim a manual Windows test passed unless it was actually performed on Windows.
 
 Manual Windows checks include first launch, vault selection, config persistence, hotkey from Notepad/browser, saving with Obsidian closed, Bangla/multiline text, save/cancel/error draft retention, collision behavior, hotkey conflict fallback, and shutdown releasing the shortcut. See `docs/TEST_PLAN.md` for the full matrix.

@@ -1,0 +1,4 @@
+# Build-time dependency for the Obsidrop Windows portable release.
+# Runtime use requires only the Python standard library.
+# PyInstaller 6.22.3 supports Python 3.8-3.15, including Python 3.14 on Windows x64.
+pyinstaller==6.22.3

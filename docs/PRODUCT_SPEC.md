@@ -12,7 +12,7 @@ Capturing an idea currently requires the user to stop their current activity, sw
 
 - Primary user: an individual Windows user who maintains an Obsidian vault.
 - Supported OS: Windows 10 and Windows 11.
-- Python: 3.10 or newer.
+- Python: 3.14 or newer for source use; the portable build includes Python.
 - Hardware: low- and mid-range Windows computers; avoid unnecessary background CPU and memory use.
 - Connectivity: no internet connection required.
 
