@@ -65,6 +65,13 @@ Useful instruction: do not allow an agent to add dependencies, rewrite unrelated
 
 ## 6. Git workflow
 
+Two branches have distinct roles:
+
+- `dev` is the active development branch; day-to-day commits land here.
+- `main` is for stable milestones. Do not use it for in-progress work.
+
+Do not assume the branches match. Run `git fetch`, then compare them with `git diff origin/main origin/dev`.
+
 Initialize the repository if needed:
 
 ```powershell

@@ -277,6 +277,11 @@ Manual Windows checks include first launch, vault selection, config persistence,
 
 ## 12. Required workflow for every task
 
+### Branch roles
+- `dev` is the active development branch. Day-to-day work lands here.
+- `main` is reserved for stable milestones. Do not use it for in-progress work.
+- Do not assume the branches match. Run `git fetch`, then compare explicitly with `git diff origin/main origin/dev`.
+
 ### Before editing
 1. Read this file and relevant specification/architecture/test documents.
 2. Inspect current source; do not rely on memory or this summary alone.
