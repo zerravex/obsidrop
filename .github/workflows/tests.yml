@@ -1,0 +1,60 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Do not cancel the remaining combinations when one fails, so every
+      # supported Python version and OS reports its own result.
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - ubuntu-latest
+        python-version:
+          - "3.14"
+          - "3.15"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Obsidrop has no third-party runtime dependencies, so there is nothing
+      # to install. This check fails loudly if the requested interpreter is not
+      # actually the one under test, instead of passing on a fallback version.
+      - name: Confirm interpreter version
+        shell: python
+        env:
+          EXPECTED_PYTHON: ${{ matrix.python-version }}
+        run: |
+          import os
+          import sys
+
+          expected = os.environ["EXPECTED_PYTHON"]
+          actual = f"{sys.version_info[0]}.{sys.version_info[1]}"
+          print(f"Interpreter: Python {actual} (expected {expected})")
+          if actual != expected:
+              raise SystemExit(f"Expected Python {expected}, got {actual}")
+
+      - name: Run unit tests
+        run: python -m unittest discover -v
+
+      - name: Check compilation
+        run: python -m compileall -q app.py obsidrop tests
