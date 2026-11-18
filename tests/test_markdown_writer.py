@@ -40,7 +40,9 @@ class WriteCaptureTests(unittest.TestCase):
     def test_writes_note_to_configured_destination(self) -> None:
         path = write_capture(self.config, "A captured thought.", self.moment)
 
-        self.assertEqual(path.parent, self.vault / "Inbox" / "Quick Captures")
+        # write_capture uses the resolved vault path, which can differ from
+        # tempfile's path when Windows supplies an 8.3 short name.
+        self.assertEqual(path.parent, self.vault.resolve() / "Inbox" / "Quick Captures")
         self.assertEqual(path.name, "2026-11-17-121530.md")
         self.assertIn("A captured thought.", path.read_text(encoding="utf-8"))
 

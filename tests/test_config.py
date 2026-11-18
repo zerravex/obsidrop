@@ -85,7 +85,9 @@ class ConfigStoreTests(unittest.TestCase):
             config_dir = base / "settings"
             vault.mkdir()
             store = ConfigStore(config_dir)
-            expected = AppConfig(str(vault), DEFAULT_CAPTURE_FOLDER)
+            # Settings validation stores the resolved vault path, which can differ
+            # from tempfile's path when Windows supplies an 8.3 short name.
+            expected = AppConfig(str(vault.resolve()), DEFAULT_CAPTURE_FOLDER)
 
             store.save(expected)
             loaded = store.load()
